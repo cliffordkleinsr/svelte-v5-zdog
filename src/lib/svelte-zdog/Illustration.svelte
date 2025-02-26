@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import Zdog from 'zdog';
 	import { setZdog, setParent } from './index.js';
 	import type {
@@ -64,46 +64,48 @@
 	setZdog(ctx);
 	setParent(ctx.scene);
 
-	$effect(() => {
-		illu = new Zdog.Illustration({
-			...rest,
-			element: canvas,
-			onResize(w, h) {
-				onResize(this, w, h);
-			},
-			onPrerender(context) {
-				onPrerender(this, context);
-			},
-			onDragStart(pointer) {
-				onDragStart(this, pointer);
-			},
-			onDragMove(pointer, moveX, moveY) {
-				onDragMove(this, pointer, moveX, moveY);
-			},
-			onDragEnd() {
-				onDragEnd(this);
-			}
+	$effect.pre(() => {
+		tick().then(() => {
+			illu = new Zdog.Illustration({
+				...rest,
+				element: canvas,
+				onResize(w, h) {
+					onResize(this, w, h);
+				},
+				onPrerender(context) {
+					onPrerender(this, context);
+				},
+				onDragStart(pointer) {
+					onDragStart(this, pointer);
+				},
+				onDragMove(pointer, moveX, moveY) {
+					onDragMove(this, pointer, moveX, moveY);
+				},
+				onDragEnd() {
+					onDragEnd(this);
+				}
+			});
+
+			illu.addChild(ctx.scene);
+			illu.updateGraph();
+
+			let last = 0;
+			let frame: number;
+			let unsubscribe = ctx.subscribe(update(ctx.scene));
+			const render = (ms = 0) => {
+				ctx.subscribers.forEach((sub) => sub(ms - last, ms));
+				illu.updateRenderGraph();
+				frame = requestAnimationFrame(render);
+				last = ms;
+			};
+
+			render();
+
+			return () => {
+				unsubscribe();
+				cancelAnimationFrame(frame);
+			};
 		});
-
-		illu.addChild(ctx.scene);
-		illu.updateGraph();
-
-		let last = 0;
-		let frame: number;
-		let unsubscribe = ctx.subscribe(update(ctx.scene));
-		const render = (ms = 0) => {
-			ctx.subscribers.forEach((sub) => sub(ms - last, ms));
-			illu.updateRenderGraph();
-			frame = requestAnimationFrame(render);
-			last = ms;
-		};
-
-		render();
-
-		return () => {
-			unsubscribe();
-			cancelAnimationFrame(frame);
-		};
 	});
 </script>
 
